@@ -32,6 +32,10 @@ const AMENITIES = [
   { icon: "🕉️", title: "Temple Proximity", desc: "Just 2km from Khandoba Temple" },
 ];
 
+const BACKEND_URL = "https://atithi-niwas-backend-313898411138.asia-south1.run.app";
+const RAZORPAY_KEY = "rzp_test_ShniifmDZT5EcB";
+const OWNER_PHONE = "8793365792";
+
 export default function App() {
   const [nav, setNav] = useState(false);
   const [section, setSection] = useState("home");
@@ -46,6 +50,8 @@ export default function App() {
   const [showModal, setShowModal] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [visible, setVisible] = useState({});
+  const [checking, setChecking] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
   const heroRef = useRef(null);
 
   const price = PRICING.find(p => p.guests === guests)?.price || 500;
@@ -53,7 +59,7 @@ export default function App() {
   const total = nights * price;
   const advance = Math.round(total * 0.5);
   const remaining = total - advance;
-  const valid = checkIn && checkOut && nights > 0 && name && email && phone;
+  const valid = checkIn && checkOut && nights > 0 && name && email && phone && !unavailable;
 
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY);
@@ -77,57 +83,70 @@ export default function App() {
     document.body.appendChild(script);
   }, []);
 
-  const pay = () => {
-    if (!valid) return;
-    setShowModal(true);
-  };
-
-const initRazorpay = async () => {
-  const BACKEND_URL = 'https://atithi-niwas-backend-313898411138.asia-south1.run.app';
-  const RAZORPAY_KEY = 'rzp_test_ShniifmDZT5EcB'; // ← Replace with your key
-
-  const opts = {
-    key: RAZORPAY_KEY,
-    amount: advance * 100,
-    currency: 'INR',
-    name: 'Atithi Niwas',
-    description: `${nights} night(s) · ${guests} guest(s)`,
-    prefill: { name, email, contact: phone },
-    theme: { color: '#C8860A' },
-    handler: async (r) => {
+  // ── CHECK AVAILABILITY WHEN DATES CHANGE ──
+  useEffect(() => {
+    if (!checkIn || !checkOut || nights <= 0) { setUnavailable(false); return; }
+    const timer = setTimeout(async () => {
       try {
-        await fetch(`${BACKEND_URL}/api/booking/confirm`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            paymentId: r.razorpay_payment_id,
-            orderId: r.razorpay_order_id,
-            signature: r.razorpay_signature,
-            booking: {
-              customerName: name,
-              customerEmail: email,
-              customerPhone: phone,
-              checkInDate: checkIn,
-              checkOutDate: checkOut,
-              guests,
-              total,
-              advance,
-              remaining,
-              note,
-            }
-          })
+        setChecking(true);
+        const res = await fetch(`${BACKEND_URL}/api/check-availability`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checkIn, checkOut }),
         });
-        setShowModal(false);
-        alert(`✅ Booking Confirmed!\nConfirmation email sent to ${email}`);
+        const data = await res.json();
+        setUnavailable(!data.available);
       } catch (err) {
-        console.error(err);
-        setShowModal(false);
-        alert('Payment received! We will confirm your booking shortly.');
+        console.error("Availability check failed:", err);
+        setUnavailable(false);
+      } finally {
+        setChecking(false);
       }
-    },
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [checkIn, checkOut]);
+
+  const pay = () => { if (!valid) return; setShowModal(true); };
+
+  const initRazorpay = () => {
+    setShowModal(false);
+    const opts = {
+      key: RAZORPAY_KEY,
+      amount: advance * 100,
+      currency: "INR",
+      name: "Atithi Niwas",
+      description: `${nights} night(s) · ${guests} guest(s)`,
+      prefill: { name, email, contact: phone },
+      theme: { color: "#C8860A" },
+      handler: async (r) => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/booking/confirm`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              paymentId: r.razorpay_payment_id,
+              orderId: r.razorpay_order_id,
+              signature: r.razorpay_signature,
+              booking: {
+                customerName: name, customerEmail: email, customerPhone: phone,
+                checkInDate: checkIn, checkOutDate: checkOut,
+                guests, total, advance, remaining, note,
+              },
+            }),
+          });
+          const data = await res.json();
+          if (data.error === "DATES_UNAVAILABLE") {
+            alert(`❌ Sorry! These dates were just booked by someone else.\n\nPlease call or WhatsApp Balaji Mule:\n📞 ${OWNER_PHONE}`);
+          } else {
+            alert(`✅ Booking Confirmed!\nConfirmation email sent to ${email}\n\nThank you for choosing Atithi Niwas!`);
+          }
+        } catch (err) {
+          alert(`Payment received! We will confirm your booking shortly.\nPlease call ${OWNER_PHONE} if needed.`);
+        }
+      },
+    };
+    if (window.Razorpay) new window.Razorpay(opts).open();
   };
-  if (window.Razorpay) new window.Razorpay(opts).open();
-};
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -370,9 +389,35 @@ const initRazorpay = async () => {
                   </div>
                 </div>
 
-                {nights > 0 && (
+                {nights > 0 && !unavailable && !checking && (
                   <div style={{ marginBottom: 32, padding: "12px 16px", background: "rgba(200,134,10,0.06)", borderLeft: "2px solid #C8860A", fontSize: 12, color: "#c4a882", letterSpacing: "0.05em" }}>
-                    {nights} night{nights > 1 ? "s" : ""} selected
+                    ✅ {nights} night{nights > 1 ? "s" : ""} selected · Dates available!
+                  </div>
+                )}
+
+                {checking && (
+                  <div style={{ marginBottom: 32, padding: "12px 16px", background: "rgba(200,134,10,0.04)", borderLeft: "2px solid #5a4a3a", fontSize: 12, color: "#5a4a3a", letterSpacing: "0.05em" }}>
+                    ⏳ Checking availability...
+                  </div>
+                )}
+
+                {unavailable && (
+                  <div style={{ marginBottom: 32, padding: "20px", background: "rgba(180,30,30,0.08)", border: "1px solid rgba(180,30,30,0.3)", borderLeft: "3px solid #c0392b" }}>
+                    <div style={{ fontSize: 14, color: "#e74c3c", fontWeight: 600, marginBottom: 8 }}>
+                      ❌ Sorry! These dates are already booked.
+                    </div>
+                    <div style={{ fontSize: 12, color: "#8a7060", lineHeight: 1.8 }}>
+                      Our room is occupied for the selected dates. Please choose different dates or contact us directly:
+                    </div>
+                    <div style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                      <a href="tel:+918793365792" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", background: "linear-gradient(135deg,#C8860A,#e8a020)", color: "#0a0704", textDecoration: "none", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em" }}>
+                        📞 CALL BALAJI MULE
+                      </a>
+                      <a href="https://wa.me/918793365792?text=Hi%2C+I+want+to+book+Atithi+Niwas.+The+dates+I+need+are+already+showing+as+booked.+Can+you+help%3F" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", background: "#25D366", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em" }}>
+                        💬 WHATSAPP
+                      </a>
+                    </div>
+                    <div style={{ marginTop: 10, fontSize: 11, color: "#5a4a3a" }}>📞 +91 8793365792</div>
                   </div>
                 )}
 
@@ -398,7 +443,7 @@ const initRazorpay = async () => {
 
                 <button className="btn-gold" disabled={!valid} onClick={pay}
                   style={{ width: "100%", padding: "18px", fontSize: 11, borderRadius: 0 }}>
-                  {valid ? "Proceed to Payment →" : "Fill All Details to Continue"}
+                  {checking ? "⏳ Checking Availability..." : unavailable ? "❌ Dates Not Available" : valid ? "Proceed to Payment →" : "Fill All Details to Continue"}
                 </button>
 
                 <p style={{ textAlign: "center", marginTop: 16, fontSize: 10, color: "#3a2d1f", letterSpacing: "0.1em" }}>
@@ -591,7 +636,7 @@ const initRazorpay = async () => {
               <a href="tel:+918793365792" className="btn-gold" style={{ padding: "12px 28px", fontSize: 10, borderRadius: 0, textDecoration: "none", display: "inline-block" }}>
                 📞 Call Us
               </a>
-              <a href="mailto:balajimule08918@gmail.com" className="btn-outline" style={{ padding: "12px 28px", fontSize: 10, borderRadius: 0, textDecoration: "none", display: "inline-block" }}>
+              <a href="mailto:atithi.niwas.jejuri@gmail.com" className="btn-outline" style={{ padding: "12px 28px", fontSize: 10, borderRadius: 0, textDecoration: "none", display: "inline-block" }}>
                 ✉ Email Us
               </a>
             </div>
@@ -614,7 +659,7 @@ const initRazorpay = async () => {
               <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
                 {[
                   { icon: "📞", label: "Phone", value: "+91 87933 65792", sub: "Available 24/7", href: "tel:+918793365792" },
-                  { icon: "✉️", label: "Email", value: "balajimule08918@gmail.com", sub: "Response within 2 hours", href: "mailto:balajimule08918@gmail.com" },
+                  { icon: "✉️", label: "Email", value: "atithi.niwas.jejuri@gmail.com", sub: "Response within 2 hours", href: "mailto:atithi.niwas.jejuri@gmail.com" },
                   { icon: "📍", label: "Address", value: "Near Khandoba Temple", sub: "Jejuri, Maharashtra 412110", href: null },
                   { icon: "🕐", label: "Check-in · Check-out", value: "1:00 PM · 11:00 AM", sub: "Early check-in on request", href: null },
                 ].map(({ icon, label, value, sub, href }) => (
