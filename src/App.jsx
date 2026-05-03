@@ -82,23 +82,52 @@ export default function App() {
     setShowModal(true);
   };
 
-  const initRazorpay = () => {
-    const opts = {
-      key: "YOUR_RAZORPAY_KEY_ID",
-      amount: advance * 100,
-      currency: "INR",
-      name: "Atithi Niwas",
-      description: `${nights} night(s) · ${guests} guest(s)`,
-      prefill: { name, email, contact: phone },
-      notes: { checkIn, checkOut, guests, total, advance, remaining, note },
-      theme: { color: "#C8860A" },
-      handler: (r) => {
+const initRazorpay = async () => {
+  const BACKEND_URL = 'https://atithi-niwas-backend-313898411138.asia-south1.run.app';
+  const RAZORPAY_KEY = 'rzp_test_ShniifmDZT5EcB'; // ← Replace with your key
+
+  const opts = {
+    key: RAZORPAY_KEY,
+    amount: advance * 100,
+    currency: 'INR',
+    name: 'Atithi Niwas',
+    description: `${nights} night(s) · ${guests} guest(s)`,
+    prefill: { name, email, contact: phone },
+    theme: { color: '#C8860A' },
+    handler: async (r) => {
+      try {
+        await fetch(`${BACKEND_URL}/api/booking/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentId: r.razorpay_payment_id,
+            orderId: r.razorpay_order_id,
+            signature: r.razorpay_signature,
+            booking: {
+              customerName: name,
+              customerEmail: email,
+              customerPhone: phone,
+              checkInDate: checkIn,
+              checkOutDate: checkOut,
+              guests,
+              total,
+              advance,
+              remaining,
+              note,
+            }
+          })
+        });
         setShowModal(false);
-        alert(`✅ Booking Confirmed!\nPayment ID: ${r.razorpay_payment_id}\nConfirmation sent to ${email}`);
-      },
-    };
-    if (window.Razorpay) new window.Razorpay(opts).open();
+        alert(`✅ Booking Confirmed!\nConfirmation email sent to ${email}`);
+      } catch (err) {
+        console.error(err);
+        setShowModal(false);
+        alert('Payment received! We will confirm your booking shortly.');
+      }
+    },
   };
+  if (window.Razorpay) new window.Razorpay(opts).open();
+};
 
   const today = new Date().toISOString().split("T")[0];
 
