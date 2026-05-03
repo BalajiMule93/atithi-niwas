@@ -562,7 +562,7 @@ export default function App() {
               <a href="tel:+918793365792" className="btn-gold" style={{ padding: "12px 28px", fontSize: 10, borderRadius: 0, textDecoration: "none", display: "inline-block" }}>
                 📞 Call Us
               </a>
-              <a href="mailto:atithi.niwas.jejuri@gmail.com" className="btn-outline" style={{ padding: "12px 28px", fontSize: 10, borderRadius: 0, textDecoration: "none", display: "inline-block" }}>
+              <a href="mailto:balajimule08918@gmail.com" className="btn-outline" style={{ padding: "12px 28px", fontSize: 10, borderRadius: 0, textDecoration: "none", display: "inline-block" }}>
                 ✉ Email Us
               </a>
             </div>
@@ -585,7 +585,7 @@ export default function App() {
               <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
                 {[
                   { icon: "📞", label: "Phone", value: "+91 87933 65792", sub: "Available 24/7", href: "tel:+918793365792" },
-                  { icon: "✉️", label: "Email", value: "atithi.niwas.jejuri@gmail.com", sub: "Response within 2 hours", href: "mailto:atithi.niwas.jejuri@gmail.com" },
+                  { icon: "✉️", label: "Email", value: "balajimule08918@gmail.com", sub: "Response within 2 hours", href: "mailto:balajimule08918@gmail.com" },
                   { icon: "📍", label: "Address", value: "Near Khandoba Temple", sub: "Jejuri, Maharashtra 412110", href: null },
                   { icon: "🕐", label: "Check-in · Check-out", value: "1:00 PM · 11:00 AM", sub: "Early check-in on request", href: null },
                 ].map(({ icon, label, value, sub, href }) => (
